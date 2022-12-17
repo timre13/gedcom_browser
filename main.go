@@ -9,6 +9,7 @@ import (
     "unicode/utf8"
     "os"
     "bufio"
+    "html"
 )
 
 const MAX_LEVEL_COUNT = 16
@@ -325,7 +326,8 @@ func genTokenFromLine(line string) *Token {
             fmt.Printf("\tInvalid line value: \"%s\"\n", lineVal)
             return nil
         }
-        output.LineVal.SetValue(lineVal)
+        // TODO: Remove HTML tags
+        output.LineVal.SetValue(html.UnescapeString(lineVal))
     }
     return &output
 }
