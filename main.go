@@ -18,6 +18,28 @@ type Gedcom struct {
     Tokens []Token
 }
 
+func (this *Gedcom) GetTokenByPath(tags []Tag) *Token {
+    var currToken *Token
+    for _, token := range this.Tokens {
+        if token.Tag == tags[0] {
+            currToken = &token
+            break
+        }
+    }
+    if currToken == nil {
+        return nil
+    }
+
+    for _, tag := range tags[1:] {
+        match := currToken.GetFirstChildWithTag(tag)
+        if match == nil {
+            return nil
+        }
+        currToken = match
+    }
+    return currToken
+}
+
 type Tag int
 const (
     TAG_INVALID Tag = iota
@@ -231,6 +253,15 @@ func (this *Token) String() string {
         this.Level, this.Xref.GetValueOr(""), tagToStr(this.Tag), this.LineVal.GetValueOr(""), len(this.Subitems))
 }
 
+func (this *Token) GetFirstChildWithTag(tag Tag) *Token {
+    for _, child := range this.Subitems {
+        if child.Tag== tag {
+            return &child
+        }
+    }
+    return nil
+}
+
 func isUcLetter(char rune) bool {
     return unicode.IsUpper(char) && unicode.IsLetter(char)
 }
@@ -416,4 +447,17 @@ func main() {
     fmt.Printf("There are %d parent tokens\n", len(tree.Tokens))
     fmt.Println("-------- Tree --------")
     printTree(tree.Tokens, 0)
+
+    getValueOr := func(token *Token, def string) string {
+        if token != nil {
+            return token.LineVal.GetValueOr(def)
+        }
+        return def
+    }
+
+    fmt.Println("-------- Info --------")
+    fmt.Printf("Format version: %s\n", getValueOr(tree.GetTokenByPath([]Tag{TAG_HEAD, TAG_GEDC, TAG_VERS}), "???"))
+    fmt.Printf("Source: %s\n", getValueOr(tree.GetTokenByPath([]Tag{TAG_HEAD, TAG_SOUR, TAG_NAME}), "???"))
+    fmt.Printf("Language: %s\n", getValueOr(tree.GetTokenByPath([]Tag{TAG_HEAD, TAG_LANG}), "???"))
+    fmt.Printf("File date: %s\n", getValueOr(tree.GetTokenByPath([]Tag{TAG_HEAD, TAG_DATE}), "???"))
 }
