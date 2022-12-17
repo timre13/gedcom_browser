@@ -11,6 +11,8 @@ import (
     "bufio"
 )
 
+const MAX_LEVEL_COUNT = 16
+
 type Gedcom struct {
     Tokens []Token
 }
@@ -175,11 +177,12 @@ type Token struct {
     Xref        Optional[string]
     Tag         Tag
     LineVal     Optional[string]
+    Subitems    []Token
 }
 
 func (this *Token) String() string {
-    return fmt.Sprintf("lvl=%d, xref='%s', tag=%s, val=\"%s\"",
-        this.Level, this.Xref.GetValueOr(""), tagToStr(this.Tag), this.LineVal.GetValueOr(""))
+    return fmt.Sprintf("lvl=%d, xref='%s', tag=%s, val=\"%s\", subs=%d",
+        this.Level, this.Xref.GetValueOr(""), tagToStr(this.Tag), this.LineVal.GetValueOr(""), len(this.Subitems))
 }
 
 func isUcLetter(char rune) bool {
@@ -253,7 +256,7 @@ func concatSliceWithSpaces(slice []string) string {
     return output[1:]
 }
 
-func genTokenFromLine(line string) Token {
+func genTokenFromLine(line string) *Token {
     // Remove BOM if found
     if getRuneFromStr(line, 0) == 0xfeff {
         line = line[utf8.RuneLen(getRuneFromStr(line, 0)):]
@@ -262,7 +265,6 @@ func genTokenFromLine(line string) Token {
     output := Token{}
     fields := strings.Split(line, " ")
     output.Level, _ = strconv.Atoi(fields[0])
-    fmt.Printf("Line: \"%s\"\n", line)
     if isReference(fields[1]) {
         xref := fields[1][1:utf8.RuneCountInString(fields[1])-1]
         output.Xref.SetValue(xref)
@@ -276,33 +278,95 @@ func genTokenFromLine(line string) Token {
         lineVal := concatSliceWithSpaces(fields[2:])
         if !isValidLineVal(lineVal) {
             fmt.Printf("\tInvalid line value: \"%s\"\n", lineVal)
-            return Token{}
+            return nil
         }
         output.LineVal.SetValue(lineVal)
     }
-    return output
+    return &output
 }
 
-func loadFile(path string) Gedcom {
+func loadTokensFromFile(path string) []Token {
+    fmt.Println("Loading tokens from file...")
+
     file, err := os.Open(path)
     if err != nil { panic(err) }
     defer file.Close()
 
-    output := Gedcom{}
+    tokens := []Token{}
 
     scanner := bufio.NewScanner(file)
+    lineNum := 1
     for scanner.Scan() {
-        output.Tokens = append(output.Tokens, genTokenFromLine(scanner.Text()))
+        line := scanner.Text()
+        fmt.Printf("Line #%d: \"%s\"\n", lineNum, line)
+        token := genTokenFromLine(line)
+        if token != nil {
+            tokens = append(tokens, *token)
+        }
+        lineNum++
+    }
+
+    return tokens
+}
+
+func buildTreeFromTokens(tokens []Token) Gedcom {
+    fmt.Println("Building tree...")
+
+    output := Gedcom{}
+    var path [MAX_LEVEL_COUNT]*[]Token
+    path[0] = &output.Tokens
+    level := 0
+
+    addSibling := func(token *Token) {
+        *path[level] = append(*path[level], *token)
+        path[level+1] = &(*path[level])[len((*path[level]))-1].Subitems
+    }
+
+    addChild := func(token *Token) {
+        level++
+        addSibling(token)
+    }
+
+    for _, token := range tokens {
+        fmt.Println(token.String())
+
+        if token.Level == level+1 {
+            fmt.Printf("Child branch with level %d\n", token.Level)
+            addChild(&token)
+        } else if token.Level == level {
+            fmt.Printf("Sibling branch with level %d\n", token.Level)
+            addSibling(&token)
+        } else if token.Level < level {
+            fmt.Printf("Upper branch with level %d\n", token.Level)
+            level = token.Level
+            addSibling(&token)
+        } else {
+            panic("Token skipped a level")
+        }
     }
 
     return output
+}
+
+func printTree(tree []Token, level int) {
+    for _, token := range tree {
+        fmt.Print(strings.Repeat("  ", level))
+        fmt.Printf("(%s)\n", token.String())
+        printTree(token.Subitems, level+1)
+    }
 }
 
 func main() {
     //file := loadFile("./samples/MINIMAL555.GED")
     file := loadFile("./samples/555SAMPLE.GED")
+    tokens := loadTokensFromFile("./samples/555SAMPLE.GED")
     fmt.Println("-------- Tokens --------")
-    for i, token := range file.Tokens {
+    for i, token := range tokens {
         fmt.Printf("%d : %s\n", i+1, token.String())
     }
+
+    tree := buildTreeFromTokens(tokens)
+    fmt.Printf("There are %d parent tokens\n", len(tree.Tokens))
+    fmt.Println("-------- Tree --------")
+    printTree(tree.Tokens, 0)
 }

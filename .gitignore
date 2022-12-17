@@ -1,3 +1,4 @@
 *.vim
 .runcfg
 gedcom_browser
+private/
