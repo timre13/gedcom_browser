@@ -65,7 +65,22 @@ const (
     TAG_TIME
     TAG_TITL
     TAG_WIFE
-    TAG_WWW 
+    TAG_WWW
+    TAG_ADR2
+    TAG_CAUS
+    TAG_CONC
+    TAG_CONT
+    TAG_DEST
+    TAG_DIV
+    TAG_EDUC
+    TAG_EMAIL
+    TAG_FAM
+    TAG_INDI
+    TAG_NOTE
+    TAG_OCCU
+    TAG_RELI
+    TAG_RIN
+    TAG_TYPE
 )
 
 func strToTag(str string) Tag {
@@ -109,13 +124,28 @@ func strToTag(str string) Tag {
     case "POST": return TAG_POST
     case "REPO": return TAG_REPO
     case "RESI": return TAG_RESI
-    case "SEX": return TAG_SEX
+    case "SEX":  return TAG_SEX
     case "STAE": return TAG_STAE
     case "SURN": return TAG_SURN
     case "TIME": return TAG_TIME
     case "TITL": return TAG_TITL
     case "WIFE": return TAG_WIFE
-    case "WWW": return TAG_WWW 
+    case "WWW":  return TAG_WWW
+    case "ADR2": return TAG_ADR2
+    case "CAUS": return TAG_CAUS
+    case "CONC": return TAG_CONC
+    case "CONT": return TAG_CONT
+    case "DEST": return TAG_DEST
+    case "DIV":  return TAG_DIV
+    case "EDUC": return TAG_EDUC
+    case "EMAIL":return TAG_EMAIL
+    case "FAM":  return TAG_FAM
+    case "INDI": return TAG_INDI
+    case "NOTE": return TAG_NOTE
+    case "OCCU": return TAG_OCCU
+    case "RELI": return TAG_RELI
+    case "RIN":  return TAG_RIN
+    case "TYPE": return TAG_TYPE
     }
     return TAG_INVALID
 }
@@ -169,6 +199,21 @@ func tagToStr(tag Tag) string {
         "TITL",
         "WIFE",
         "WWW",
+        "ADR2",
+        "CAUS",
+        "CONC",
+        "CONT",
+        "DEST",
+        "DIV",
+        "EDUC",
+        "EMAIL",
+        "FAM",
+        "INDI",
+        "NOTE",
+        "OCCU",
+        "RELI",
+        "RIN",
+        "TYPE",
     }[tag]
 }
 
