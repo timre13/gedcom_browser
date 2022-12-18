@@ -255,7 +255,7 @@ func (this *Token) String() string {
 
 func (this *Token) GetFirstChildWithTag(tag Tag) *Token {
     for _, child := range this.Subitems {
-        if child.Tag== tag {
+        if child.Tag == tag {
             return &child
         }
     }
