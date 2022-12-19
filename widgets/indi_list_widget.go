@@ -59,6 +59,9 @@ func NewIndiListWidget(tree *token.Gedcom) *gtk.ScrolledWindow {
     addCol := func(text string, coli int) {
         rend, _ := gtk.CellRendererTextNew()
         tvCol, _ := gtk.TreeViewColumnNewWithAttribute(text, rend, "text", coli)
+        tvCol.SetResizable(true)
+        tvCol.SetSortColumnID(coli)
+        tvCol.SetExpand(true)
         listWidget.AppendColumn(tvCol)
     }
     addCol("First Name", columnFirstName)
