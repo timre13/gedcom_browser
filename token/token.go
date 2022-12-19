@@ -40,6 +40,18 @@ func (this *Gedcom) GetTokenByPath(tags []Tag) *Token {
     return currToken
 }
 
+func (this* Gedcom) GetTokensWithTag(tag Tag) []*Token {
+    output := []*Token{}
+
+    for _, tok := range this.Tokens {
+        if tok.Tag == tag {
+            output = append(output, tok)
+        }
+    }
+
+    return output
+}
+
 type Tag int
 const (
     TAG_INVALID Tag = iota
@@ -260,6 +272,63 @@ func (this *Token) GetFirstChildWithTag(tag Tag) *Token {
         }
     }
     return nil
+}
+
+func (this *Token) GetFirstChildWithTagValueOr(tag Tag, def string) string {
+    child := this.GetFirstChildWithTag(tag)
+    if child == nil {
+        return def
+    }
+    return child.LineVal.GetValueOr(def)
+}
+
+type Date struct {
+    // 1-indexed
+    Year  int
+    // 1-indexed
+    Month int
+    // 1-indexed
+    Day   int
+}
+
+var monthNames = [...]string{
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MAY",
+    "JUN",
+    "JUL",
+    "AUG",
+    "SEP",
+    "OCT",
+    "NOV",
+    "DEC",
+}
+
+func (this *Token) ParseToDate() *Date {
+    if !this.LineVal.HasValue() { return nil }
+
+    fields := strings.Split(this.LineVal.GetValue(), " ")
+    if len(fields) != 3 { return nil }
+
+    output := Date{}
+
+    var err error
+    output.Day, err = strconv.Atoi(fields[0])
+    if err != nil { return nil }
+
+    for i, month := range monthNames {
+        if month == fields[1] {
+            output.Month = i+1
+            break
+        }
+    }
+
+    output.Year, err = strconv.Atoi(fields[2])
+    if err != nil { return nil }
+
+    return &output
 }
 
 func isUcLetter(char rune) bool {

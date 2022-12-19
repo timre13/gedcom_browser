@@ -2,8 +2,10 @@ package main
 
 import (
     "github.com/gotk3/gotk3/gtk"
+    "github.com/gotk3/gotk3/cairo"
     "fmt"
     "strings"
+    "math"
     . "gedcom_browser/token"
     "gedcom_browser/widgets"
 )
@@ -61,8 +63,98 @@ func main() {
     win.SetTitle(fmt.Sprintf("GEDCOM Browser [%s]",
         strings.TrimSuffix(strings.TrimSuffix(path[strings.LastIndex(path, "/")+1:], ".ged"), ".GED")))
 
-    win.Add(indi_list_widget.NewIndiListWidget(&tree))
+    mainCont, _ := gtk.PanedNew(gtk.ORIENTATION_HORIZONTAL)
 
+    individListWidget := indi_list_widget.NewIndiListWidget(&tree)
+    individListWidgetSelected := 0
+    individListWidget.SetSizeRequest(300, 0)
+    mainCont.Add(individListWidget)
+    
+    drawPerson := func(cr *cairo.Context, token *Token, x float64, y float64) {
+        gender := token.GetFirstChildWithTagValueOr(TAG_SEX, "U")
+        switch (gender) {
+        case "M": // Male
+            cr.SetSourceRGB(0.35, 0.4, 0.5)
+        case "F": // Female
+            cr.SetSourceRGB(0.45, 0.3, 0.4)
+        case "X": // Other
+            cr.SetSourceRGB(0.5, 0.5, 0.4)
+        case "U": // Unknown
+            fallthrough
+        default:
+            cr.SetSourceRGB(0.5, 0.5, 0.5)
+        }
+        cr.Rectangle(x, y, 45, 35)
+        cr.Fill()
+
+        cr.SetSourceRGB(1.0, 1.0, 1.0)
+        cr.MoveTo(x, y+5)
+        cr.SetFontSize(4)
+        name := indi_list_widget.ParseName(token.GetFirstChildWithTagValueOr(TAG_NAME, ""))
+        cr.ShowText(name.FirstName+" "+name.LastName)
+
+        cr.SetFontSize(3)
+        cr.MoveTo(x, y+8)
+        birthYear := "???"
+        birthToken := token.GetFirstChildWithTag(TAG_BIRT)
+        if birthToken != nil {
+            birthDateToken := birthToken.GetFirstChildWithTag(TAG_DATE)
+            if birthDateToken != nil {
+                birthDate := birthDateToken.ParseToDate()
+                if birthDate != nil {
+                    birthYear = fmt.Sprint(birthDate.Year)
+                }
+            }
+        }
+
+        deathYear := ""
+        deathToken := token.GetFirstChildWithTag(TAG_DEAT)
+        if deathToken != nil {
+            deathDateToken := deathToken.GetFirstChildWithTag(TAG_DATE)
+            if deathDateToken != nil {
+                deathDate := deathDateToken.ParseToDate()
+                if deathDate != nil {
+                    deathYear = fmt.Sprint(deathDate.Year)
+                } else {
+                    deathYear = "???"
+                }
+            } else {
+                deathYear = "???"
+            }
+        }
+        cr.ShowText(birthYear+" - "+deathYear)
+    }
+
+    treeWidget, _ := gtk.DrawingAreaNew()
+    mainCont.Add(treeWidget)
+    drawCb := func(widget *gtk.DrawingArea, cr *cairo.Context) bool {
+        ww, wh := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
+        scale := math.Min(ww/100, wh/100)
+        cr.Scale(scale, scale)
+
+        cr.SetSourceRGB(0.2, 0.2, 0.2)
+        cr.Paint()
+
+        people := tree.GetTokensWithTag(TAG_INDI)
+        drawPerson(cr, people[individListWidgetSelected], 30, 30)
+
+        widget.QueueDraw()
+        return false
+    }
+    treeWidget.Connect("draw", drawCb)
+
+    child, _ := individListWidget.GetChild()
+    child.ToWidget().Connect("cursor-changed", func(widg *gtk.TreeView) bool {
+        sel, _ := widg.GetSelection()
+        model, iter, _ := sel.GetSelected()
+        selVal, _ := model.ToTreeModel().GetValue(iter, 0)
+        selectedIndex, _ := selVal.GoValue()
+        individListWidgetSelected = selectedIndex.(int)
+        //fmt.Println("Selection changed to ", individListWidgetSelected)
+        return false
+    })
+
+    win.Add(mainCont)
     win.ShowAll()
     gtk.Main()
 }
