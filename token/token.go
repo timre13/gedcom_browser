@@ -15,14 +15,14 @@ import (
 const MAX_LEVEL_COUNT = 16
 
 type Gedcom struct {
-    Tokens []Token
+    Tokens []*Token
 }
 
 func (this *Gedcom) GetTokenByPath(tags []Tag) *Token {
     var currToken *Token
     for _, token := range this.Tokens {
         if token.Tag == tags[0] {
-            currToken = &token
+            currToken = token
             break
         }
     }
@@ -245,7 +245,7 @@ type Token struct {
     Xref        Optional[string]
     Tag         Tag
     LineVal     Optional[string]
-    Subitems    []Token
+    Subitems    []*Token
 }
 
 func (this *Token) String() string {
@@ -256,7 +256,7 @@ func (this *Token) String() string {
 func (this *Token) GetFirstChildWithTag(tag Tag) *Token {
     for _, child := range this.Subitems {
         if child.Tag == tag {
-            return &child
+            return child
         }
     }
     return nil
@@ -365,14 +365,14 @@ func genTokenFromLine(line string) *Token {
     return &output
 }
 
-func LoadTokensFromFile(path string) []Token {
+func LoadTokensFromFile(path string) []*Token {
     fmt.Println("Loading tokens from file...")
 
     file, err := os.Open(path)
     if err != nil { panic(err) }
     defer file.Close()
 
-    tokens := []Token{}
+    tokens := []*Token{}
 
     scanner := bufio.NewScanner(file)
     lineNum := 1
@@ -381,7 +381,7 @@ func LoadTokensFromFile(path string) []Token {
         fmt.Printf("Line #%d: \"%s\"\n", lineNum, line)
         token := genTokenFromLine(line)
         if token != nil {
-            tokens = append(tokens, *token)
+            tokens = append(tokens, token)
         }
         lineNum++
     }
@@ -395,16 +395,16 @@ func LoadTokensFromFile(path string) []Token {
     return tokens
 }
 
-func BuildTreeFromTokens(tokens []Token) Gedcom {
+func BuildTreeFromTokens(tokens []*Token) Gedcom {
     fmt.Println("Building tree...")
 
     output := Gedcom{}
-    var path [MAX_LEVEL_COUNT]*[]Token
+    var path [MAX_LEVEL_COUNT]*[]*Token
     path[0] = &output.Tokens
     level := 0
 
     addSibling := func(token *Token) {
-        *path[level] = append(*path[level], *token)
+        *path[level] = append(*path[level], token)
         path[level+1] = &(*path[level])[len((*path[level]))-1].Subitems
     }
 
@@ -418,23 +418,23 @@ func BuildTreeFromTokens(tokens []Token) Gedcom {
 
         if token.Level == level+1 {
             fmt.Printf("Child branch with level %d\n", token.Level)
-            addChild(&token)
+            addChild(token)
         } else if token.Level == level {
             fmt.Printf("Sibling branch with level %d\n", token.Level)
-            addSibling(&token)
+            addSibling(token)
         } else if token.Level < level {
             fmt.Printf("Upper branch with level %d\n", token.Level)
             level = token.Level
-            addSibling(&token)
+            addSibling(token)
         } else {
-            panic("Token skipped a level")
+            panic("Token skipped levels")
         }
     }
 
     return output
 }
 
-func PrintTree(tree []Token, level int) {
+func PrintTree(tree []*Token, level int) {
     for _, token := range tree {
         fmt.Print(strings.Repeat("  ", level))
         fmt.Printf("(%s)\n", token.String())
