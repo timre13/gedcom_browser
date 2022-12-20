@@ -70,7 +70,23 @@ func main() {
     individListWidget.ScrollWidget.SetSizeRequest(300, 0)
     mainCont.Add(individListWidget.ScrollWidget)
     
-    drawPerson := func(cr *cairo.Context, token *Token, x float64, y float64) {
+    drawPerson := func(cr *cairo.Context, token *Token, x float64, y float64, highlight ...bool) {
+        if len(highlight) == 1 && highlight[0] {
+            cr.SetSourceRGB(1, 1, 1)
+            cr.Rectangle(x, y, 45, 35)
+            cr.SetLineWidth(0.3)
+            cr.Stroke()
+        }
+
+        // This happens for example when a person's husband/wife is not known
+        // Draw a placeholder
+        if token == nil {
+            cr.SetSourceRGB(0.25, 0.25, 0.25)
+            cr.Rectangle(x, y, 45, 35)
+            cr.Fill()
+            return
+        }
+
         gender := token.GetFirstChildWithTagValueOr(TAG_SEX, "U")
         switch (gender) {
         case "M": // Male
@@ -136,7 +152,28 @@ func main() {
         cr.Paint()
 
         people := tree.GetTokensWithTag(TAG_INDI)
-        drawPerson(cr, people[individListWidgetSelected], 30, 30)
+        person := people[individListWidgetSelected]
+
+        family := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMS, ""))
+        var husb *Token
+        var wife *Token
+        if family != nil {
+            husbPtr := family.GetFirstChildWithTag(TAG_HUSB)
+            if husbPtr != nil {
+                husb = tree.LookUpPointer(husbPtr.LineVal.GetValueOr(""))
+            }
+            wifePtr := family.GetFirstChildWithTag(TAG_WIFE)
+            if wifePtr != nil {
+                wife = tree.LookUpPointer(wifePtr.LineVal.GetValueOr(""))
+            }
+        }
+
+        if husb == nil && wife == nil { // If the person wasn't married, draw only them
+            drawPerson(cr, person, 30+22.5, 30, true)
+        } else {
+            drawPerson(cr, husb, 30, 30, person==husb)
+            drawPerson(cr, wife, 30+45+5, 30, person==wife)
+        }
 
         widget.QueueDraw()
         return false

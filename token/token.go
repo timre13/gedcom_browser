@@ -52,6 +52,18 @@ func (this* Gedcom) GetTokensWithTag(tag Tag) []*Token {
     return output
 }
 
+func (this* Gedcom) LookUpPointer(ptr string) *Token {
+    ptr = strings.TrimSpace(strings.Trim(ptr, "@"))
+    if ptr == "VOID" || ptr == "" { return nil }
+
+    for _, token := range this.Tokens {
+        if token.Xref.GetValueOr("") == ptr {
+            return token
+        }
+    }
+    return nil
+}
+
 type Tag int
 const (
     TAG_INVALID Tag = iota
@@ -261,7 +273,7 @@ type Token struct {
 }
 
 func (this *Token) String() string {
-    return fmt.Sprintf("lvl=%d, xref='%s', tag=%s, val=\"%s\", subs=%d",
+    return fmt.Sprintf("lvl=%d, xref=\"%s\", tag=%s, val=\"%s\", subs=%d",
         this.Level, this.Xref.GetValueOr(""), tagToStr(this.Tag), this.LineVal.GetValueOr(""), len(this.Subitems))
 }
 
