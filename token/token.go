@@ -294,6 +294,18 @@ func (this *Token) GetFirstChildWithTagValueOr(tag Tag, def string) string {
     return child.LineVal.GetValueOr(def)
 }
 
+func (this *Token) GetChildrenWithTag(tag Tag) []*Token {
+    output := []*Token{}
+
+    for _, child := range this.Subitems {
+        if child.Tag == tag {
+            output = append(output, child)
+        }
+    }
+
+    return output
+}
+
 type Date struct {
     // 1-indexed
     Year  int

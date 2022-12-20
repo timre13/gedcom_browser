@@ -5,7 +5,7 @@ import (
     "github.com/gotk3/gotk3/cairo"
     "fmt"
     "strings"
-    "math"
+    //"math"
     . "gedcom_browser/token"
     "gedcom_browser/widgets"
 )
@@ -69,11 +69,44 @@ func main() {
     individListWidgetSelected := 0
     individListWidget.ScrollWidget.SetSizeRequest(300, 0)
     mainCont.Add(individListWidget.ScrollWidget)
+
+    type PersonLevel int
+    const (
+        PERSON_LEVEL_ANCESTOR PersonLevel = iota
+        PERSON_LEVEL_NORMAL
+        PERSON_LEVEL_CHILD
+    )
     
-    drawPerson := func(cr *cairo.Context, token *Token, x float64, y float64, highlight ...bool) {
+    // Level ancestor
+    const PERSON_LA_RECT_W = 30
+    const PERSON_LA_RECT_H = 20
+    const PERSON_LA_RECT_PAD = 2
+    const PERSON_LA_RECT_FONTS = 3
+    // Level child
+    const PERSON_LC_RECT_W = 20
+    const PERSON_LC_RECT_H = 12
+    const PERSON_LC_RECT_PAD = 1
+    const PERSON_LC_RECT_FONTS = 2
+    drawPerson := func(cr *cairo.Context, token *Token, x float64, y float64, level PersonLevel, highlight ...bool) {
+
+        var rectW, rectH, fontSize float64
+        switch level {
+        case PERSON_LEVEL_ANCESTOR:
+            // TODO
+            fallthrough
+        case PERSON_LEVEL_NORMAL:
+            rectW = PERSON_LA_RECT_W
+            rectH = PERSON_LA_RECT_H
+            fontSize = PERSON_LA_RECT_FONTS
+        case PERSON_LEVEL_CHILD:
+            rectW = PERSON_LC_RECT_W
+            rectH = PERSON_LC_RECT_H
+            fontSize = PERSON_LC_RECT_FONTS
+        }
+
         if len(highlight) == 1 && highlight[0] {
             cr.SetSourceRGB(1, 1, 1)
-            cr.Rectangle(x, y, 45, 35)
+            cr.Rectangle(x, y, rectW, rectH)
             cr.SetLineWidth(0.3)
             cr.Stroke()
         }
@@ -82,7 +115,7 @@ func main() {
         // Draw a placeholder
         if token == nil {
             cr.SetSourceRGB(0.25, 0.25, 0.25)
-            cr.Rectangle(x, y, 45, 35)
+            cr.Rectangle(x, y, rectW, rectH)
             cr.Fill()
             return
         }
@@ -100,17 +133,17 @@ func main() {
         default:
             cr.SetSourceRGB(0.5, 0.5, 0.5)
         }
-        cr.Rectangle(x, y, 45, 35)
+        cr.Rectangle(x, y, rectW, rectH)
         cr.Fill()
 
         cr.SetSourceRGB(1.0, 1.0, 1.0)
-        cr.MoveTo(x, y+5)
-        cr.SetFontSize(4)
+        cr.MoveTo(x, y+4)
+        cr.SetFontSize(fontSize)
         name := indi_list_widget.ParseName(token.GetFirstChildWithTagValueOr(TAG_NAME, ""))
         cr.ShowText(name.FirstName+" "+name.LastName)
 
-        cr.SetFontSize(3)
-        cr.MoveTo(x, y+8)
+        cr.SetFontSize(fontSize*0.6)
+        cr.MoveTo(x, y+7)
         birthYear := "???"
         birthToken := token.GetFirstChildWithTag(TAG_BIRT)
         if birthToken != nil {
@@ -144,8 +177,10 @@ func main() {
     treeWidget, _ := gtk.DrawingAreaNew()
     mainCont.Add(treeWidget)
     drawCb := func(widget *gtk.DrawingArea, cr *cairo.Context) bool {
-        ww, wh := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
-        scale := math.Min(ww/100, wh/100)
+        //ww, wh := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
+        ww, _ := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
+        //scale := math.Min(ww/100, wh/100)
+        scale := ww/100
         cr.Scale(scale, scale)
 
         cr.SetSourceRGB(0.2, 0.2, 0.2)
@@ -155,8 +190,8 @@ func main() {
         person := people[individListWidgetSelected]
 
         family := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMS, ""))
-        var husb *Token
-        var wife *Token
+        var husb, wife *Token
+        var children []*Token
         if family != nil {
             husbPtr := family.GetFirstChildWithTag(TAG_HUSB)
             if husbPtr != nil {
@@ -166,13 +201,27 @@ func main() {
             if wifePtr != nil {
                 wife = tree.LookUpPointer(wifePtr.LineVal.GetValueOr(""))
             }
+            childPtrs := family.GetChildrenWithTag(TAG_CHIL)
+            for _, childPtr := range childPtrs {
+                child := tree.LookUpPointer(childPtr.LineVal.GetValueOr(""))
+                if child != nil {
+                    children = append(children, child)
+                }
+            }
         }
 
         if husb == nil && wife == nil { // If the person wasn't married, draw only them
-            drawPerson(cr, person, 30+22.5, 30, true)
+            drawPerson(cr, person, 50-PERSON_LA_RECT_W/2, 50-PERSON_LA_RECT_H/2, PERSON_LEVEL_NORMAL, true)
         } else {
-            drawPerson(cr, husb, 30, 30, person==husb)
-            drawPerson(cr, wife, 30+45+5, 30, person==wife)
+            drawPerson(cr, husb, 50-PERSON_LA_RECT_W-PERSON_LA_RECT_PAD/2, 50-PERSON_LA_RECT_H/2, PERSON_LEVEL_NORMAL, person==husb)
+            drawPerson(cr, wife, 50+PERSON_LA_RECT_PAD/2, 50-PERSON_LA_RECT_H/2, PERSON_LEVEL_NORMAL, person==wife)
+        }
+
+        startX := float64(50-float64(len(children))/2.0*(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD))+PERSON_LC_RECT_PAD/2.0
+        for i, child := range children {
+            xPos := startX+(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD)*float64(i)
+            yPos := float64(50-PERSON_LA_RECT_H/2+PERSON_LA_RECT_H+PERSON_LC_RECT_PAD)
+            drawPerson(cr, child, xPos, yPos, PERSON_LEVEL_CHILD)
         }
 
         widget.QueueDraw()
