@@ -8,9 +8,9 @@ import (
 )
 
 const (
-    columnIndex = iota
-    columnFirstName
-    columnLastName
+    ColumnIndex = iota
+    ColumnFirstName
+    ColumnLastName
 )
 
 type Name struct {
@@ -51,10 +51,18 @@ func ParseName(name string) Name {
     return output
 }
 
-func NewIndiListWidget(tree *token.Gedcom) *gtk.ScrolledWindow {
-    scrollWidget, _ := gtk.ScrolledWindowNew(nil, nil)
-    listStore, _ := gtk.ListStoreNew(glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING)
-    listWidget, _ := gtk.TreeViewNewWithModel(listStore)
+type IndiListWidget struct {
+    ScrollWidget        *gtk.ScrolledWindow
+    ListWidget          *gtk.TreeView
+    ListStore           *gtk.ListStore
+}
+
+func IndiListWidgetNew(tree *token.Gedcom) *IndiListWidget {
+    widget := IndiListWidget{}
+
+    widget.ScrollWidget, _ = gtk.ScrolledWindowNew(nil, nil)
+    widget.ListStore, _ = gtk.ListStoreNew(glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING)
+    widget.ListWidget, _ = gtk.TreeViewNewWithModel(widget.ListStore)
 
     addCol := func(text string, coli int) {
         rend, _ := gtk.CellRendererTextNew()
@@ -62,28 +70,27 @@ func NewIndiListWidget(tree *token.Gedcom) *gtk.ScrolledWindow {
         tvCol.SetResizable(true)
         tvCol.SetSortColumnID(coli)
         tvCol.SetExpand(true)
-        if coli == columnIndex {
-            // Column 0 is only used to distinguish between items, so hide it
+        if coli == ColumnIndex {
             tvCol.SetVisible(false)
         }
-        listWidget.AppendColumn(tvCol)
+        widget.ListWidget.AppendColumn(tvCol)
     }
-    addCol("#", columnIndex)
-    addCol("First Name", columnFirstName)
-    addCol("Last Name", columnLastName)
+    addCol("#", ColumnIndex)
+    addCol("First Name", ColumnFirstName)
+    addCol("Last Name", ColumnLastName)
 
     i := 0
     for _, tok := range tree.GetTokensWithTag(token.TAG_INDI) {
         nameStr := tok.GetFirstChildWithTagValueOr(token.TAG_NAME, "")
         name := ParseName(nameStr)
 
-        iter := listStore.Append()
-        listStore.SetValue(iter, columnIndex, i)
-        listStore.SetValue(iter, columnFirstName, name.FirstName)
-        listStore.SetValue(iter, columnLastName, name.LastName)
+        iter := widget.ListStore.Append()
+        widget.ListStore.SetValue(iter, ColumnIndex, i)
+        widget.ListStore.SetValue(iter, ColumnFirstName, name.FirstName)
+        widget.ListStore.SetValue(iter, ColumnLastName, name.LastName)
         i++
     }
 
-    scrollWidget.Add(listWidget)
-    return scrollWidget
+    widget.ScrollWidget.Add(widget.ListWidget)
+    return &widget
 }

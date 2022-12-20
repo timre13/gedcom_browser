@@ -65,10 +65,10 @@ func main() {
 
     mainCont, _ := gtk.PanedNew(gtk.ORIENTATION_HORIZONTAL)
 
-    individListWidget := indi_list_widget.NewIndiListWidget(&tree)
+    individListWidget := indi_list_widget.IndiListWidgetNew(&tree)
     individListWidgetSelected := 0
-    individListWidget.SetSizeRequest(300, 0)
-    mainCont.Add(individListWidget)
+    individListWidget.ScrollWidget.SetSizeRequest(300, 0)
+    mainCont.Add(individListWidget.ScrollWidget)
     
     drawPerson := func(cr *cairo.Context, token *Token, x float64, y float64) {
         gender := token.GetFirstChildWithTagValueOr(TAG_SEX, "U")
@@ -143,8 +143,7 @@ func main() {
     }
     treeWidget.Connect("draw", drawCb)
 
-    child, _ := individListWidget.GetChild()
-    child.ToWidget().Connect("cursor-changed", func(widg *gtk.TreeView) bool {
+    individListWidget.ListWidget.Connect("cursor-changed", func(widg *gtk.TreeView) bool {
         sel, _ := widg.GetSelection()
         model, iter, _ := sel.GetSelected()
         selVal, _ := model.ToTreeModel().GetValue(iter, 0)
