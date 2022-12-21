@@ -78,10 +78,15 @@ func main() {
     )
     
     // Level ancestor
-    const PERSON_LA_RECT_W = 30
-    const PERSON_LA_RECT_H = 20
-    const PERSON_LA_RECT_PAD = 2
-    const PERSON_LA_RECT_FONTS = 3
+    const PERSON_LA_RECT_W = 20
+    const PERSON_LA_RECT_H = 12
+    const PERSON_LA_RECT_PAD = 1
+    const PERSON_LA_RECT_FONTS = 2
+    // Level normal
+    const PERSON_LN_RECT_W = 30
+    const PERSON_LN_RECT_H = 20
+    const PERSON_LN_RECT_PAD = 2
+    const PERSON_LN_RECT_FONTS = 3
     // Level child
     const PERSON_LC_RECT_W = 20
     const PERSON_LC_RECT_H = 12
@@ -92,15 +97,16 @@ func main() {
         var rectW, rectH, fontSize float64
         switch level {
         case PERSON_LEVEL_ANCESTOR:
-            // TODO
-            fallthrough
-        case PERSON_LEVEL_NORMAL:
-            rectW = PERSON_LA_RECT_W
-            rectH = PERSON_LA_RECT_H
+            rectW    = PERSON_LA_RECT_W
+            rectH    = PERSON_LA_RECT_H
             fontSize = PERSON_LA_RECT_FONTS
+        case PERSON_LEVEL_NORMAL:
+            rectW    = PERSON_LN_RECT_W
+            rectH    = PERSON_LN_RECT_H
+            fontSize = PERSON_LN_RECT_FONTS
         case PERSON_LEVEL_CHILD:
-            rectW = PERSON_LC_RECT_W
-            rectH = PERSON_LC_RECT_H
+            rectW    = PERSON_LC_RECT_W
+            rectH    = PERSON_LC_RECT_H
             fontSize = PERSON_LC_RECT_FONTS
         }
 
@@ -189,19 +195,19 @@ func main() {
         people := tree.GetTokensWithTag(TAG_INDI)
         person := people[individListWidgetSelected]
 
-        family := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMS, ""))
-        var husb, wife *Token
+        sfamily := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMS, ""))
+        var husband, wife *Token
         var children []*Token
-        if family != nil {
-            husbPtr := family.GetFirstChildWithTag(TAG_HUSB)
+        if sfamily != nil {
+            husbPtr := sfamily.GetFirstChildWithTag(TAG_HUSB)
             if husbPtr != nil {
-                husb = tree.LookUpPointer(husbPtr.LineVal.GetValueOr(""))
+                husband = tree.LookUpPointer(husbPtr.LineVal.GetValueOr(""))
             }
-            wifePtr := family.GetFirstChildWithTag(TAG_WIFE)
+            wifePtr := sfamily.GetFirstChildWithTag(TAG_WIFE)
             if wifePtr != nil {
                 wife = tree.LookUpPointer(wifePtr.LineVal.GetValueOr(""))
             }
-            childPtrs := family.GetChildrenWithTag(TAG_CHIL)
+            childPtrs := sfamily.GetChildrenWithTag(TAG_CHIL)
             for _, childPtr := range childPtrs {
                 child := tree.LookUpPointer(childPtr.LineVal.GetValueOr(""))
                 if child != nil {
@@ -210,19 +216,48 @@ func main() {
             }
         }
 
-        if husb == nil && wife == nil { // If the person wasn't married, draw only them
-            drawPerson(cr, person, 50-PERSON_LA_RECT_W/2, 50-PERSON_LA_RECT_H/2, PERSON_LEVEL_NORMAL, true)
+        if husband == nil && wife == nil { // If the person wasn't married, draw only them
+            drawPerson(cr, person, 50-PERSON_LN_RECT_W/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, true)
         } else {
-            drawPerson(cr, husb, 50-PERSON_LA_RECT_W-PERSON_LA_RECT_PAD/2, 50-PERSON_LA_RECT_H/2, PERSON_LEVEL_NORMAL, person==husb)
-            drawPerson(cr, wife, 50+PERSON_LA_RECT_PAD/2, 50-PERSON_LA_RECT_H/2, PERSON_LEVEL_NORMAL, person==wife)
+            drawPerson(cr, husband, 50-PERSON_LN_RECT_W-PERSON_LN_RECT_PAD/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, person==husband)
+            drawPerson(cr, wife, 50+PERSON_LN_RECT_PAD/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, person==wife)
         }
 
         startX := float64(50-float64(len(children))/2.0*(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD))+PERSON_LC_RECT_PAD/2.0
         for i, child := range children {
             xPos := startX+(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD)*float64(i)
-            yPos := float64(50-PERSON_LA_RECT_H/2+PERSON_LA_RECT_H+PERSON_LC_RECT_PAD)
+            yPos := float64(50-PERSON_LN_RECT_H/2+PERSON_LN_RECT_H+PERSON_LC_RECT_PAD)
             drawPerson(cr, child, xPos, yPos, PERSON_LEVEL_CHILD)
         }
+
+        var father, mother *Token
+        cfamily := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMC, ""))
+        if cfamily != nil {
+            fatherPtr := cfamily.GetFirstChildWithTag(TAG_HUSB)
+            if fatherPtr != nil {
+                father = tree.LookUpPointer(fatherPtr.LineVal.GetValueOr(""))
+            }
+            motherPtr := cfamily.GetFirstChildWithTag(TAG_WIFE)
+            if motherPtr != nil {
+                mother = tree.LookUpPointer(motherPtr.LineVal.GetValueOr(""))
+            }
+        }
+
+        parentOffsX := 0.0
+        if husband == nil && wife == nil {
+            parentOffsX = 50-PERSON_LN_RECT_W/2.0
+        } else if person == husband {
+            parentOffsX = 50-PERSON_LN_RECT_W-PERSON_LN_RECT_PAD/2.0
+        } else if person == wife {
+            parentOffsX = 50+PERSON_LN_RECT_PAD/2.0
+        }
+
+        fx := parentOffsX+PERSON_LN_RECT_W/2.0-PERSON_LA_RECT_W-PERSON_LA_RECT_PAD/2.0
+        fy := 50-PERSON_LN_RECT_H/2.0-PERSON_LA_RECT_H-PERSON_LA_RECT_PAD
+        drawPerson(cr, father, fx, fy, PERSON_LEVEL_ANCESTOR)
+        mx := parentOffsX+PERSON_LN_RECT_W/2.0+PERSON_LA_RECT_PAD/2.0
+        my := fy
+        drawPerson(cr, mother, mx, my, PERSON_LEVEL_ANCESTOR)
 
         widget.QueueDraw()
         return false
