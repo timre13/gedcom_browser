@@ -52,17 +52,34 @@ func ParseName(name string) Name {
 }
 
 type IndiListWidget struct {
+    BoxWidget          *gtk.Box
     ScrollWidget        *gtk.ScrolledWindow
     ListWidget          *gtk.TreeView
-    ListStore           *gtk.ListStore
+    listStore           *gtk.ListStore
+    tree                *token.Gedcom
+    SearchEntry         *gtk.Entry
+    searchTerm          string
+    IsSearching         bool
 }
 
 func IndiListWidgetNew(tree *token.Gedcom) *IndiListWidget {
     widget := IndiListWidget{}
 
+    widget.BoxWidget, _ = gtk.BoxNew(gtk.ORIENTATION_VERTICAL, 0)
+
+    widget.SearchEntry, _ = gtk.EntryNew()
+    widget.BoxWidget.PackStart(widget.SearchEntry, false, false, 0)
+    widget.SearchEntry.Connect("changed", func(){
+        text, _ := widget.SearchEntry.GetText()
+        widget.Search(text)
+    })
+
     widget.ScrollWidget, _ = gtk.ScrolledWindowNew(nil, nil)
-    widget.ListStore, _ = gtk.ListStoreNew(glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING)
-    widget.ListWidget, _ = gtk.TreeViewNewWithModel(widget.ListStore)
+    widget.BoxWidget.PackStart(widget.ScrollWidget, true, true, 0)
+
+    widget.listStore, _ = gtk.ListStoreNew(glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING)
+    widget.ListWidget, _ = gtk.TreeViewNewWithModel(widget.listStore)
+    widget.ScrollWidget.Add(widget.ListWidget)
 
     addCol := func(text string, coli int) {
         rend, _ := gtk.CellRendererTextNew()
@@ -79,18 +96,50 @@ func IndiListWidgetNew(tree *token.Gedcom) *IndiListWidget {
     addCol("First Name", ColumnFirstName)
     addCol("Last Name", ColumnLastName)
 
-    i := 0
-    for _, tok := range tree.GetTokensWithTag(token.TAG_INDI) {
-        nameStr := tok.GetFirstChildWithTagValueOr(token.TAG_NAME, "")
-        name := ParseName(nameStr)
+    widget.tree = tree
+    widget.fetchItems()
 
-        iter := widget.ListStore.Append()
-        widget.ListStore.SetValue(iter, ColumnIndex, i)
-        widget.ListStore.SetValue(iter, ColumnFirstName, name.FirstName)
-        widget.ListStore.SetValue(iter, ColumnLastName, name.LastName)
-        i++
+    return &widget
+}
+
+func (this *IndiListWidget) fetchItems() {
+    this.searchTerm = strings.ToLower((strings.ToLower(this.searchTerm)))
+    searchTerms := strings.Split(this.searchTerm, " ")
+
+    isSearchMatch := func(value string) bool {
+        if this.searchTerm == "" {
+            return true
+        }
+
+        value = strings.ToLower(value)
+
+        for _, term := range searchTerms {
+            if !strings.Contains(value, term) {
+                return false
+            }
+        }
+        return true
     }
 
-    widget.ScrollWidget.Add(widget.ListWidget)
-    return &widget
+    i := 0
+    for _, tok := range this.tree.GetTokensWithTag(token.TAG_INDI) {
+        nameStr := tok.GetFirstChildWithTagValueOr(token.TAG_NAME, "")
+        if isSearchMatch(nameStr) {
+            name := ParseName(nameStr)
+
+            iter := this.listStore.Append()
+            this.listStore.SetValue(iter, ColumnIndex, i)
+            this.listStore.SetValue(iter, ColumnFirstName, name.FirstName)
+            this.listStore.SetValue(iter, ColumnLastName, name.LastName)
+        }
+        i++
+    }
+}
+
+func (this *IndiListWidget) Search(term string) {
+    this.IsSearching = true
+    this.searchTerm = term
+    this.listStore.Clear()
+    this.fetchItems()
+    this.IsSearching = false
 }

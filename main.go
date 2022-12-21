@@ -68,7 +68,7 @@ func main() {
     individListWidget := indi_list_widget.IndiListWidgetNew(&tree)
     individListWidgetSelected := 0
     individListWidget.ScrollWidget.SetSizeRequest(300, 0)
-    mainCont.Add(individListWidget.ScrollWidget)
+    mainCont.Add(individListWidget.BoxWidget)
 
     type PersonLevel int
     const (
@@ -231,11 +231,14 @@ func main() {
 
     individListWidget.ListWidget.Connect("cursor-changed", func(widg *gtk.TreeView) bool {
         sel, _ := widg.GetSelection()
-        model, iter, _ := sel.GetSelected()
-        selVal, _ := model.ToTreeModel().GetValue(iter, 0)
-        selectedIndex, _ := selVal.GoValue()
-        individListWidgetSelected = selectedIndex.(int)
-        //fmt.Println("Selection changed to ", individListWidgetSelected)
+        // Don't trigger when the selection changes
+        // because the searching rebuilds the list
+        if !individListWidget.IsSearching && sel.CountSelectedRows() == 1 {
+            model, iter, _ := sel.GetSelected()
+            selVal, _ := model.ToTreeModel().GetValue(iter, 0)
+            selectedIndex, _ := selVal.GoValue()
+            individListWidgetSelected = selectedIndex.(int)
+        }
         return false
     })
 
