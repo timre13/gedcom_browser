@@ -2,6 +2,7 @@ package main
 
 import (
     "github.com/gotk3/gotk3/gtk"
+    "github.com/gotk3/gotk3/gdk"
     "github.com/gotk3/gotk3/cairo"
     "fmt"
     "strings"
@@ -18,6 +19,7 @@ type TreeWidgetRect struct {
     FontSize    float64
     Highlight   bool
     Token       *Token
+    isHovered   bool
 }
 
 func (this *TreeWidgetRect) Draw(cr *cairo.Context) {
@@ -89,6 +91,25 @@ func (this *TreeWidgetRect) Draw(cr *cairo.Context) {
         }
     }
     cr.ShowText(birthYear+" - "+deathYear)
+
+    if this.isHovered {
+        cr.SetSourceRGBA(1, 1, 1, 0.15)
+        cr.Rectangle(this.XPos, this.YPos, this.Width, this.Height)
+        cr.Fill()
+    }
+}
+
+func (this *TreeWidgetRect) IsPointInside(x float64, y float64) bool {
+    return x >= this.XPos && x < this.XPos+this.Width &&
+           y >= this.YPos && y < this.YPos+this.Height
+}
+
+func (this *TreeWidgetRect) OnMouseEnter() {
+    this.isHovered = true
+}
+
+func (this *TreeWidgetRect) OnMouseLeave() {
+    this.isHovered = false
 }
 
 func main() {
@@ -147,11 +168,10 @@ func main() {
     mainCont, _ := gtk.PanedNew(gtk.ORIENTATION_HORIZONTAL)
 
     individListWidget := indi_list_widget.IndiListWidgetNew(&tree)
-    individListWidgetSelected := 0
     individListWidget.ScrollWidget.SetSizeRequest(300, 0)
     mainCont.Add(individListWidget.BoxWidget)
 
-    var treeWidgetItems []TreeWidgetRect
+    var treeWidgetItems []*TreeWidgetRect
 
     type PersonLevel int
     const (
@@ -198,11 +218,13 @@ func main() {
         // so we don't have to look up substructures at every redraw.
         person.Token = token
 
-        treeWidgetItems = append(treeWidgetItems, person)
+        treeWidgetItems = append(treeWidgetItems, &person)
     }
 
+    treeWidgetEventBox, _ := gtk.EventBoxNew()
+    mainCont.Add(treeWidgetEventBox)
     treeWidget, _ := gtk.DrawingAreaNew()
-    mainCont.Add(treeWidget)
+    treeWidgetEventBox.Add(treeWidget)
     drawCb := func(widget *gtk.DrawingArea, cr *cairo.Context) bool {
         //ww, wh := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
         ww, _ := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
@@ -222,88 +244,124 @@ func main() {
     }
     treeWidget.Connect("draw", drawCb)
 
+    setCurrentPerson := func(person *Token) {
+        treeWidgetItems = []*TreeWidgetRect{}
+
+        //fmt.Println("Looking up FAMS")
+        sfamily := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMS, ""))
+        var husband, wife *Token
+        var children []*Token
+        if sfamily != nil {
+            husbPtr := sfamily.GetFirstChildWithTag(TAG_HUSB)
+            if husbPtr != nil {
+                husband = tree.LookUpPointer(husbPtr.LineVal.GetValueOr(""))
+            }
+            wifePtr := sfamily.GetFirstChildWithTag(TAG_WIFE)
+            if wifePtr != nil {
+                wife = tree.LookUpPointer(wifePtr.LineVal.GetValueOr(""))
+            }
+            childPtrs := sfamily.GetChildrenWithTag(TAG_CHIL)
+            for _, childPtr := range childPtrs {
+                child := tree.LookUpPointer(childPtr.LineVal.GetValueOr(""))
+                if child != nil {
+                    children = append(children, child)
+                }
+            }
+        }
+
+        if husband == nil && wife == nil { // If the person wasn't married, draw only them
+            addPersonToTreeWidget(person, 50-PERSON_LN_RECT_W/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, true)
+        } else {
+            addPersonToTreeWidget(husband, 50-PERSON_LN_RECT_W-PERSON_LN_RECT_PAD/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, person==husband)
+            addPersonToTreeWidget(wife, 50+PERSON_LN_RECT_PAD/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, person==wife)
+        }
+
+        startX := float64(50-float64(len(children))/2.0*(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD))+PERSON_LC_RECT_PAD/2.0
+        for i, child := range children {
+            xPos := startX+(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD)*float64(i)
+            yPos := float64(50-PERSON_LN_RECT_H/2+PERSON_LN_RECT_H+PERSON_LC_RECT_PAD)
+            addPersonToTreeWidget(child, xPos, yPos, PERSON_LEVEL_CHILD)
+        }
+
+        //fmt.Println("Looking up FAMC")
+        cfamily := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMC, ""))
+        var father, mother *Token
+        if cfamily != nil {
+            fatherPtr := cfamily.GetFirstChildWithTag(TAG_HUSB)
+            if fatherPtr != nil {
+                father = tree.LookUpPointer(fatherPtr.LineVal.GetValueOr(""))
+            }
+            motherPtr := cfamily.GetFirstChildWithTag(TAG_WIFE)
+            if motherPtr != nil {
+                mother = tree.LookUpPointer(motherPtr.LineVal.GetValueOr(""))
+            }
+        }
+
+        parentOffsX := 0.0
+        if husband == nil && wife == nil {
+            parentOffsX = 50-PERSON_LN_RECT_W/2.0
+        } else if person == husband {
+            parentOffsX = 50-PERSON_LN_RECT_W-PERSON_LN_RECT_PAD/2.0
+        } else if person == wife {
+            parentOffsX = 50+PERSON_LN_RECT_PAD/2.0
+        }
+
+        fx := parentOffsX+PERSON_LN_RECT_W/2.0-PERSON_LA_RECT_W-PERSON_LA_RECT_PAD/2.0
+        fy := 50-PERSON_LN_RECT_H/2.0-PERSON_LA_RECT_H-PERSON_LA_RECT_PAD
+        addPersonToTreeWidget(father, fx, fy, PERSON_LEVEL_ANCESTOR)
+        mx := parentOffsX+PERSON_LN_RECT_W/2.0+PERSON_LA_RECT_PAD/2.0
+        my := fy
+        addPersonToTreeWidget(mother, mx, my, PERSON_LEVEL_ANCESTOR)
+    }
+
+    treeWidgetEventBox.Connect("button-release-event", func(widget *gtk.EventBox, event *gdk.Event){
+        eventBtn := gdk.EventButtonNewFromEvent(event)
+        ww, _ := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
+        scale := ww/100
+        x := eventBtn.X()/scale
+        y := eventBtn.Y()/scale
+
+        if eventBtn.Button() == gdk.BUTTON_PRIMARY {
+            for _, item := range treeWidgetItems {
+                if item.Token != nil && item.IsPointInside(x, y) {
+                    setCurrentPerson(item.Token)
+                    break
+                }
+            }
+        }
+    })
+
+    treeWidgetEventBox.AddEvents((int)(gdk.BUTTON_PRESS_MASK | gdk.POINTER_MOTION_MASK))
+    treeWidgetEventBox.Connect("motion-notify-event", func(widget *gtk.EventBox, event *gdk.Event){
+        eventMot := gdk.EventMotionNewFromEvent(event)
+        eventX, eventY := eventMot.MotionVal()
+
+        ww, _ := float64(treeWidget.GetAllocatedWidth()), float64(treeWidget.GetAllocatedHeight())
+        scale := ww/100
+        x := eventX/scale
+        y := eventY/scale
+
+        for _, item := range treeWidgetItems {
+            if item.IsPointInside(x, y) {
+                item.OnMouseEnter()
+            } else {
+                item.OnMouseLeave()
+            }
+        }
+    })
+
     individListWidget.ListWidget.Connect("cursor-changed", func(widg *gtk.TreeView) bool {
         sel, _ := widg.GetSelection()
         // Don't trigger when the selection changes
         // because the searching rebuilds the list
         if !individListWidget.IsSearching && sel.CountSelectedRows() == 1 {
-            treeWidgetItems = []TreeWidgetRect{}
-
             model, iter, _ := sel.GetSelected()
             selVal, _ := model.ToTreeModel().GetValue(iter, 0)
             selectedIndex, _ := selVal.GoValue()
-            individListWidgetSelected = selectedIndex.(int)
 
             people := tree.GetTokensWithTag(TAG_INDI)
-            person := people[individListWidgetSelected]
-
-            fmt.Println("Looking up FAMS")
-
-            sfamily := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMS, ""))
-            var husband, wife *Token
-            var children []*Token
-            if sfamily != nil {
-                husbPtr := sfamily.GetFirstChildWithTag(TAG_HUSB)
-                if husbPtr != nil {
-                    husband = tree.LookUpPointer(husbPtr.LineVal.GetValueOr(""))
-                }
-                wifePtr := sfamily.GetFirstChildWithTag(TAG_WIFE)
-                if wifePtr != nil {
-                    wife = tree.LookUpPointer(wifePtr.LineVal.GetValueOr(""))
-                }
-                childPtrs := sfamily.GetChildrenWithTag(TAG_CHIL)
-                for _, childPtr := range childPtrs {
-                    child := tree.LookUpPointer(childPtr.LineVal.GetValueOr(""))
-                    if child != nil {
-                        children = append(children, child)
-                    }
-                }
-            }
-
-            if husband == nil && wife == nil { // If the person wasn't married, draw only them
-                addPersonToTreeWidget(person, 50-PERSON_LN_RECT_W/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, true)
-            } else {
-                addPersonToTreeWidget(husband, 50-PERSON_LN_RECT_W-PERSON_LN_RECT_PAD/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, person==husband)
-                addPersonToTreeWidget(wife, 50+PERSON_LN_RECT_PAD/2, 50-PERSON_LN_RECT_H/2, PERSON_LEVEL_NORMAL, person==wife)
-            }
-
-            startX := float64(50-float64(len(children))/2.0*(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD))+PERSON_LC_RECT_PAD/2.0
-            for i, child := range children {
-                xPos := startX+(PERSON_LC_RECT_W+PERSON_LC_RECT_PAD)*float64(i)
-                yPos := float64(50-PERSON_LN_RECT_H/2+PERSON_LN_RECT_H+PERSON_LC_RECT_PAD)
-                addPersonToTreeWidget(child, xPos, yPos, PERSON_LEVEL_CHILD)
-            }
-
-            fmt.Println("Looking up FAMC")
-
-            var father, mother *Token
-            cfamily := tree.LookUpPointer(person.GetFirstChildWithTagValueOr(TAG_FAMC, ""))
-            if cfamily != nil {
-                fatherPtr := cfamily.GetFirstChildWithTag(TAG_HUSB)
-                if fatherPtr != nil {
-                    father = tree.LookUpPointer(fatherPtr.LineVal.GetValueOr(""))
-                }
-                motherPtr := cfamily.GetFirstChildWithTag(TAG_WIFE)
-                if motherPtr != nil {
-                    mother = tree.LookUpPointer(motherPtr.LineVal.GetValueOr(""))
-                }
-            }
-
-            parentOffsX := 0.0
-            if husband == nil && wife == nil {
-                parentOffsX = 50-PERSON_LN_RECT_W/2.0
-            } else if person == husband {
-                parentOffsX = 50-PERSON_LN_RECT_W-PERSON_LN_RECT_PAD/2.0
-            } else if person == wife {
-                parentOffsX = 50+PERSON_LN_RECT_PAD/2.0
-            }
-
-            fx := parentOffsX+PERSON_LN_RECT_W/2.0-PERSON_LA_RECT_W-PERSON_LA_RECT_PAD/2.0
-            fy := 50-PERSON_LN_RECT_H/2.0-PERSON_LA_RECT_H-PERSON_LA_RECT_PAD
-            addPersonToTreeWidget(father, fx, fy, PERSON_LEVEL_ANCESTOR)
-            mx := parentOffsX+PERSON_LN_RECT_W/2.0+PERSON_LA_RECT_PAD/2.0
-            my := fy
-            addPersonToTreeWidget(mother, mx, my, PERSON_LEVEL_ANCESTOR)
+            person := people[selectedIndex.(int)]
+            setCurrentPerson(person)
 
         }
         return false
