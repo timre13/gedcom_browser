@@ -355,6 +355,14 @@ func (this *Token) ParseToDate() *Date {
     return &output
 }
 
+func (this *Token) ParseToDateOrZero() *Date {
+    parsed := this.ParseToDate()
+    if parsed != nil {
+        return parsed
+    }
+    return &Date{}
+}
+
 func isUcLetter(char rune) bool {
     return unicode.IsUpper(char) && unicode.IsLetter(char)
 }

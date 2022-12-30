@@ -11,6 +11,8 @@ const (
     ColumnIndex = iota
     ColumnFirstName
     ColumnLastName
+    ColumnBirthYear
+    ColumnDeathYear
 )
 
 type Name struct {
@@ -77,7 +79,7 @@ func IndiListWidgetNew(tree *token.Gedcom) *IndiListWidget {
     widget.ScrollWidget, _ = gtk.ScrolledWindowNew(nil, nil)
     widget.BoxWidget.PackStart(widget.ScrollWidget, true, true, 0)
 
-    widget.listStore, _ = gtk.ListStoreNew(glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING)
+    widget.listStore, _ = gtk.ListStoreNew(glib.TYPE_INT, glib.TYPE_STRING, glib.TYPE_STRING, glib.TYPE_INT, glib.TYPE_INT)
     widget.ListWidget, _ = gtk.TreeViewNewWithModel(widget.listStore)
     widget.ScrollWidget.Add(widget.ListWidget)
 
@@ -95,6 +97,8 @@ func IndiListWidgetNew(tree *token.Gedcom) *IndiListWidget {
     addCol("#", ColumnIndex)
     addCol("First Name", ColumnFirstName)
     addCol("Last Name", ColumnLastName)
+    addCol("Birth Year", ColumnBirthYear)
+    addCol("Death Year", ColumnDeathYear)
 
     widget.tree = tree
     widget.fetchItems()
@@ -124,13 +128,34 @@ func (this *IndiListWidget) fetchItems() {
     i := 0
     for _, tok := range this.tree.GetTokensWithTag(token.TAG_INDI) {
         nameStr := tok.GetFirstChildWithTagValueOr(token.TAG_NAME, "")
+
         if isSearchMatch(nameStr) {
             name := ParseName(nameStr)
+
+            birthYear := 0
+            birthTok := tok.GetFirstChildWithTag(token.TAG_BIRT)
+            if birthTok != nil {
+                birthDateToken := birthTok.GetFirstChildWithTag(token.TAG_DATE)
+                if birthDateToken != nil {
+                    birthYear = birthDateToken.ParseToDateOrZero().Year
+                }
+            }
+
+            deathYear := 0
+            deathTok := tok.GetFirstChildWithTag(token.TAG_DEAT)
+            if deathTok != nil {
+                deathDateToken := deathTok.GetFirstChildWithTag(token.TAG_DATE)
+                if deathDateToken != nil {
+                    deathYear = deathDateToken.ParseToDateOrZero().Year
+                }
+            }
 
             iter := this.listStore.Append()
             this.listStore.SetValue(iter, ColumnIndex, i)
             this.listStore.SetValue(iter, ColumnFirstName, name.FirstName)
             this.listStore.SetValue(iter, ColumnLastName, name.LastName)
+            this.listStore.SetValue(iter, ColumnBirthYear, birthYear)
+            this.listStore.SetValue(iter, ColumnDeathYear, deathYear)
         }
         i++
     }
